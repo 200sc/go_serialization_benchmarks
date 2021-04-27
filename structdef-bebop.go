@@ -3,6 +3,7 @@
 package goserbench
 
 import (
+	"bytes"
 	"io"
 
 	"github.com/200sc/bebop"
@@ -12,21 +13,21 @@ import (
 var _ bebop.Record = &BebopBufA{}
 
 type BebopBufA struct {
-	Name     string
+	Name string
 	BirthDay uint64
-	Phone    string
+	Phone string
 	Siblings int32
-	Spouse   bool
-	Money    float64
+	Spouse bool
+	Money float64
 }
 
 func (bbp BebopBufA) MarshalBebop() []byte {
-	buf := make([]byte, bbp.bodyLen())
+	buf := make([]byte, bbp.Size())
 	bbp.MarshalBebopTo(buf)
 	return buf
 }
 
-func (bbp BebopBufA) MarshalBebopTo(buf []byte) {
+func (bbp BebopBufA) MarshalBebopTo(buf []byte) int {
 	at := 0
 	iohelp.WriteUint32Bytes(buf[at:], uint32(len(bbp.Name)))
 	at += 4
@@ -44,37 +45,38 @@ func (bbp BebopBufA) MarshalBebopTo(buf []byte) {
 	at += 1
 	iohelp.WriteFloat64Bytes(buf[at:], bbp.Money)
 	at += 8
+	return at
 }
 
 func (bbp *BebopBufA) UnmarshalBebop(buf []byte) (err error) {
 	at := 0
-	bbp.Name, err = iohelp.ReadStringBytes(buf[at:])
+	bbp.Name, err = iohelp.ReadStringBytesSharedMemory(buf[at:])
 	if err != nil {
-		return err
+		 return err
 	}
 	at += 4 + len(bbp.Name)
 	if len(buf[at:]) < 8 {
-		return iohelp.ErrTooShort
+		 return iohelp.ErrTooShort
 	}
 	bbp.BirthDay = iohelp.ReadUint64Bytes(buf[at:])
 	at += 8
-	bbp.Phone, err = iohelp.ReadStringBytes(buf[at:])
+	bbp.Phone, err = iohelp.ReadStringBytesSharedMemory(buf[at:])
 	if err != nil {
-		return err
+		 return err
 	}
 	at += 4 + len(bbp.Phone)
 	if len(buf[at:]) < 4 {
-		return iohelp.ErrTooShort
+		 return iohelp.ErrTooShort
 	}
 	bbp.Siblings = iohelp.ReadInt32Bytes(buf[at:])
 	at += 4
 	if len(buf[at:]) < 1 {
-		return iohelp.ErrTooShort
+		 return iohelp.ErrTooShort
 	}
 	bbp.Spouse = iohelp.ReadBoolBytes(buf[at:])
 	at += 1
 	if len(buf[at:]) < 8 {
-		return iohelp.ErrTooShort
+		 return iohelp.ErrTooShort
 	}
 	bbp.Money = iohelp.ReadFloat64Bytes(buf[at:])
 	at += 8
@@ -105,7 +107,7 @@ func (bbp *BebopBufA) DecodeBebop(ior io.Reader) (err error) {
 	return r.Err
 }
 
-func (bbp BebopBufA) bodyLen() int {
+func (bbp BebopBufA) Size() int {
 	bodyLen := 0
 	bodyLen += 4
 	bodyLen += len(bbp.Name)
@@ -129,3 +131,236 @@ func makeBebopBufAFromBytes(buf []byte) (BebopBufA, error) {
 	err := v.UnmarshalBebop(buf)
 	return v, err
 }
+
+var _ bebop.Record = &BebopBufAMessage{}
+
+type BebopBufAMessage struct {
+	Name *string
+	BirthDay *uint64
+	Phone *string
+	Siblings *int32
+	Spouse *bool
+	Money *float64
+}
+
+func (bbp BebopBufAMessage) MarshalBebop() []byte {
+	buf := make([]byte, bbp.Size())
+	bbp.MarshalBebopTo(buf)
+	return buf
+}
+
+func (bbp BebopBufAMessage) MarshalBebopTo(buf []byte) int {
+	at := 0
+	iohelp.WriteUint32Bytes(buf[at:], uint32(bbp.Size()-4))
+	at += 4
+	if bbp.Name != nil {
+		buf[at] = 1
+		at++
+		iohelp.WriteUint32Bytes(buf[at:], uint32(len(*bbp.Name)))
+		at += 4
+		copy(buf[at:at+len(*bbp.Name)], []byte(*bbp.Name))
+		at += len(*bbp.Name)
+	}
+	if bbp.BirthDay != nil {
+		buf[at] = 2
+		at++
+		iohelp.WriteUint64Bytes(buf[at:], *bbp.BirthDay)
+		at += 8
+	}
+	if bbp.Phone != nil {
+		buf[at] = 3
+		at++
+		iohelp.WriteUint32Bytes(buf[at:], uint32(len(*bbp.Phone)))
+		at += 4
+		copy(buf[at:at+len(*bbp.Phone)], []byte(*bbp.Phone))
+		at += len(*bbp.Phone)
+	}
+	if bbp.Siblings != nil {
+		buf[at] = 4
+		at++
+		iohelp.WriteInt32Bytes(buf[at:], *bbp.Siblings)
+		at += 4
+	}
+	if bbp.Spouse != nil {
+		buf[at] = 5
+		at++
+		iohelp.WriteBoolBytes(buf[at:], *bbp.Spouse)
+		at += 1
+	}
+	if bbp.Money != nil {
+		buf[at] = 6
+		at++
+		iohelp.WriteFloat64Bytes(buf[at:], *bbp.Money)
+		at += 8
+	}
+	return at
+}
+
+func (bbp *BebopBufAMessage) UnmarshalBebop(buf []byte) (err error) {
+	at := 0
+	_ = iohelp.ReadUint32Bytes(buf[at:])
+	buf = buf[4:]
+	for {
+		switch buf[at] {
+		case 1:
+			at += 1
+			bbp.Name = new(string)
+			(*bbp.Name), err = iohelp.ReadStringBytesSharedMemory(buf[at:])
+			if err != nil {
+				 return err
+			}
+			at += 4 + len((*bbp.Name))
+		case 2:
+			at += 1
+			bbp.BirthDay = new(uint64)
+			if len(buf[at:]) < 8 {
+				 return iohelp.ErrTooShort
+			}
+			(*bbp.BirthDay) = iohelp.ReadUint64Bytes(buf[at:])
+			at += 8
+		case 3:
+			at += 1
+			bbp.Phone = new(string)
+			(*bbp.Phone), err = iohelp.ReadStringBytesSharedMemory(buf[at:])
+			if err != nil {
+				 return err
+			}
+			at += 4 + len((*bbp.Phone))
+		case 4:
+			at += 1
+			bbp.Siblings = new(int32)
+			if len(buf[at:]) < 4 {
+				 return iohelp.ErrTooShort
+			}
+			(*bbp.Siblings) = iohelp.ReadInt32Bytes(buf[at:])
+			at += 4
+		case 5:
+			at += 1
+			bbp.Spouse = new(bool)
+			if len(buf[at:]) < 1 {
+				 return iohelp.ErrTooShort
+			}
+			(*bbp.Spouse) = iohelp.ReadBoolBytes(buf[at:])
+			at += 1
+		case 6:
+			at += 1
+			bbp.Money = new(float64)
+			if len(buf[at:]) < 8 {
+				 return iohelp.ErrTooShort
+			}
+			(*bbp.Money) = iohelp.ReadFloat64Bytes(buf[at:])
+			at += 8
+		default:
+			return nil
+		}
+	}
+}
+
+func (bbp BebopBufAMessage) EncodeBebop(iow io.Writer) (err error) {
+	w := iohelp.NewErrorWriter(iow)
+	iohelp.WriteUint32(w, uint32(bbp.Size()-4))
+	if bbp.Name != nil {
+		w.Write([]byte{1})
+		iohelp.WriteUint32(w, uint32(len(*bbp.Name)))
+		w.Write([]byte(*bbp.Name))
+	}
+	if bbp.BirthDay != nil {
+		w.Write([]byte{2})
+		iohelp.WriteUint64(w, *bbp.BirthDay)
+	}
+	if bbp.Phone != nil {
+		w.Write([]byte{3})
+		iohelp.WriteUint32(w, uint32(len(*bbp.Phone)))
+		w.Write([]byte(*bbp.Phone))
+	}
+	if bbp.Siblings != nil {
+		w.Write([]byte{4})
+		iohelp.WriteInt32(w, *bbp.Siblings)
+	}
+	if bbp.Spouse != nil {
+		w.Write([]byte{5})
+		iohelp.WriteBool(w, *bbp.Spouse)
+	}
+	if bbp.Money != nil {
+		w.Write([]byte{6})
+		iohelp.WriteFloat64(w, *bbp.Money)
+	}
+	w.Write([]byte{0})
+	return w.Err
+}
+
+func (bbp *BebopBufAMessage) DecodeBebop(ior io.Reader) (err error) {
+	er := iohelp.NewErrorReader(ior)
+	bodyLen := iohelp.ReadUint32(er)
+	body := make([]byte, bodyLen)
+	er.Read(body)
+	r := iohelp.NewErrorReader(bytes.NewReader(body))
+	for {
+		switch iohelp.ReadByte(r) {
+		case 1:
+			bbp.Name = new(string)
+			*bbp.Name = iohelp.ReadString(r)
+		case 2:
+			bbp.BirthDay = new(uint64)
+			*bbp.BirthDay = iohelp.ReadUint64(r)
+		case 3:
+			bbp.Phone = new(string)
+			*bbp.Phone = iohelp.ReadString(r)
+		case 4:
+			bbp.Siblings = new(int32)
+			*bbp.Siblings = iohelp.ReadInt32(r)
+		case 5:
+			bbp.Spouse = new(bool)
+			*bbp.Spouse = iohelp.ReadBool(r)
+		case 6:
+			bbp.Money = new(float64)
+			*bbp.Money = iohelp.ReadFloat64(r)
+		default:
+			return er.Err
+		}
+	}
+}
+
+func (bbp BebopBufAMessage) Size() int {
+	bodyLen := 5
+	if bbp.Name != nil {
+		bodyLen += 1
+		bodyLen += 4
+		bodyLen += len(*bbp.Name)
+	}
+	if bbp.BirthDay != nil {
+		bodyLen += 1
+		bodyLen += 8
+	}
+	if bbp.Phone != nil {
+		bodyLen += 1
+		bodyLen += 4
+		bodyLen += len(*bbp.Phone)
+	}
+	if bbp.Siblings != nil {
+		bodyLen += 1
+		bodyLen += 4
+	}
+	if bbp.Spouse != nil {
+		bodyLen += 1
+		bodyLen += 1
+	}
+	if bbp.Money != nil {
+		bodyLen += 1
+		bodyLen += 8
+	}
+	return bodyLen
+}
+
+func makeBebopBufAMessage(r iohelp.ErrorReader) (BebopBufAMessage, error) {
+	v := BebopBufAMessage{}
+	err := v.DecodeBebop(r)
+	return v, err
+}
+
+func makeBebopBufAMessageFromBytes(buf []byte) (BebopBufAMessage, error) {
+	v := BebopBufAMessage{}
+	err := v.UnmarshalBebop(buf)
+	return v, err
+}
+

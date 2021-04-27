@@ -6,3 +6,12 @@ struct BebopBufA {
   bool spouse;
   float64 money;
 }
+
+message BebopBufAMessage {
+  1 -> string name;  
+  2 -> uint64 birthDay;
+  3 -> string phone;
+  4 -> int32 siblings;
+  5 -> bool spouse;
+  6 -> float64 money;
+}

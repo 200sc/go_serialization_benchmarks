@@ -1483,12 +1483,13 @@ func generateBebopA() []*BebopBufA {
 
 func Benchmark_Bebop_Marshal(b *testing.B) {
 	data := generateBebopA()
+	byteSlice := make([]byte, data[0].Size())
 	b.ReportAllocs()
 	b.ResetTimer()
 	var serialSize int
 	for i := 0; i < b.N; i++ {
-		out := data[rand.Intn(len(data))].MarshalBebop()
-		serialSize += len(out)
+		out := data[rand.Intn(len(data))].MarshalBebopTo(byteSlice)
+		serialSize += out
 	}
 	b.ReportMetric(float64(serialSize)/float64(b.N), "B/serial")
 }
@@ -1502,15 +1503,13 @@ func Benchmark_Bebop_Unmarshal(b *testing.B) {
 		ser[i] = d.MarshalBebop()
 		serialSize += len(ser[i])
 	}
+	o := &BebopBufA{}
 	b.ReportMetric(float64(serialSize)/float64(len(data)), "B/serial")
-	buf := new(bytes.Buffer)
-	buf.Grow(100)
 	b.ReportAllocs()
 	b.StartTimer()
 
 	for i := 0; i < b.N; i++ {
 		n := rand.Intn(len(ser))
-		o := BebopBufA{}
 		err := o.UnmarshalBebop(ser[n])
 		if err != nil {
 			b.Fatalf("bebop failed to unmarshal: %s (%s)", err, ser[n])
@@ -1519,6 +1518,71 @@ func Benchmark_Bebop_Unmarshal(b *testing.B) {
 		if validate != "" {
 			i := data[n]
 			correct := o.Name == i.Name && o.Phone == i.Phone && o.Siblings == i.Siblings && o.Spouse == i.Spouse && o.Money == i.Money && o.BirthDay == i.BirthDay
+			if !correct {
+				b.Fatalf("unmarshaled object differed:\n%v\n%v", i, o)
+			}
+		}
+	}
+}
+
+func generateBebopAMessage() []*BebopBufAMessage {
+	a := make([]*BebopBufAMessage, 0, 1000)
+	for i := 0; i < 1000; i++ {
+		name := randString(16)
+		birthDay := uint64(time.Now().UnixNano())
+		phone := randString(10)
+		siblings := rand.Int31n(5)
+		spouse := rand.Intn(2) == 1
+		money := rand.Float64()
+		a = append(a, &BebopBufAMessage{
+			Name:     &name,
+			BirthDay: &birthDay,
+			Phone:    &phone,
+			Siblings: &siblings,
+			Spouse:   &spouse,
+			Money:    &money,
+		})
+	}
+	return a
+}
+
+func Benchmark_BebopMessage_Marshal(b *testing.B) {
+	data := generateBebopAMessage()
+	byteSlice := make([]byte, data[0].Size())
+	b.ReportAllocs()
+	b.ResetTimer()
+	var serialSize int
+	for i := 0; i < b.N; i++ {
+		out := data[rand.Intn(len(data))].MarshalBebopTo(byteSlice)
+		serialSize += out
+	}
+	b.ReportMetric(float64(serialSize)/float64(b.N), "B/serial")
+}
+
+func Benchmark_BebopMessage_Unmarshal(b *testing.B) {
+	b.StopTimer()
+	data := generateBebopAMessage()
+	ser := make([][]byte, len(data))
+	var serialSize int
+	for i, d := range data {
+		ser[i] = d.MarshalBebop()
+		serialSize += len(ser[i])
+	}
+	o := &BebopBufAMessage{}
+	b.ReportMetric(float64(serialSize)/float64(len(data)), "B/serial")
+	b.ReportAllocs()
+	b.StartTimer()
+
+	for i := 0; i < b.N; i++ {
+		n := rand.Intn(len(ser))
+		err := o.UnmarshalBebop(ser[n])
+		if err != nil {
+			b.Fatalf("bebop failed to unmarshal: %s (%s)", err, ser[n])
+		}
+		// Validate unmarshalled data.
+		if validate != "" {
+			i := data[n]
+			correct := *o.Name == *i.Name && *o.Phone == *i.Phone && *o.Siblings == *i.Siblings && *o.Spouse == *i.Spouse && *o.Money == *i.Money && *o.BirthDay == *i.BirthDay
 			if !correct {
 				b.Fatalf("unmarshaled object differed:\n%v\n%v", i, o)
 			}

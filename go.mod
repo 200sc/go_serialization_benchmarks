@@ -2,8 +2,8 @@ module github.com/alecthomas/go_serialization_benchmarks
 
 go 1.13
 
-require (
-	github.com/200sc/bebop v0.0.8
+require ( 
+	github.com/200sc/bebop v0.1.2
 	github.com/DataDog/zstd v1.4.5 // indirect
 	github.com/Hatch1fy/errors v0.1.0 // indirect
 	github.com/Sereal/Sereal v0.0.0-20190618215532-0b8ac451a863
